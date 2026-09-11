@@ -63,12 +63,13 @@ Ne jamais committer `.env` (déjà exclu via `.gitignore`).
 
 ### 2. Base Supabase
 
-Créer la table brute dans l'éditeur SQL Supabase (DDL dans [`sql/create_tweet_metrics_raw.sql`](sql/create_tweet_metrics_raw.sql)) :
+Créer la table brute dans l'éditeur SQL Supabase :
 
 ```sql
 create table tweet_metrics_raw (
     tweet_id text,
     created_at timestamptz,
+    text text,
     likes int,
     retweets int,
     replies int,

@@ -9,3 +9,5 @@ dbt_project/dbt_packages/
 dbt_project/logs/
 dbt_project/.user.yml
 logs/
+CLAUDE_CODE_PROMPT.md
+sql/
