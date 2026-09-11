@@ -26,7 +26,8 @@ twitter-analytics-pipeline/
 │   ├── load_to_supabase.py
 │   └── run_pipeline.py
 ├── tests/
-│   └── test_x_api_client.py
+│   ├── test_x_api_client.py
+│   └── test_load_to_supabase.py
 ├── dbt_project/
 │   ├── dbt_project.yml
 │   ├── profiles.yml
@@ -38,6 +39,7 @@ twitter-analytics-pipeline/
 │           └── tweet_engagement_weekly.sql
 ├── app/
 │   └── streamlit_app.py
+├── .streamlit/config.toml
 ├── .env.example
 ├── requirements.txt
 └── .gitignore

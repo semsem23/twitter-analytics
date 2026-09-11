@@ -1,0 +1,10 @@
+[theme]
+# Thème clair fixé : la palette des graphiques est validée contre cette surface.
+base = "light"
+backgroundColor = "#fcfcfb"
+secondaryBackgroundColor = "#f9f9f7"
+textColor = "#0b0b0b"
+primaryColor = "#2a78d6"
+
+[server]
+headless = true
