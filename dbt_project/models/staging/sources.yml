@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: public
+    tables:
+      - name: tweet_metrics_raw
+        description: "Métriques brutes des tweets, un instantané par run hebdomadaire (append-only, jamais d'overwrite)."
+        loaded_at_field: extracted_at
+        freshness:
+          warn_after: { count: 8, period: day }
+          error_after: { count: 14, period: day }
+        columns:
+          - name: tweet_id
+            description: "Identifiant du tweet."
+          - name: created_at
+            description: "Date de publication du tweet."
+          - name: text
+            description: "Contenu textuel du tweet."
+          - name: likes
+          - name: retweets
+          - name: replies
+          - name: impressions
+          - name: extracted_at
+            description: "Timestamp UTC du run d'extraction ayant produit cette ligne."

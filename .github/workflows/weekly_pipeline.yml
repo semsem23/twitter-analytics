@@ -1,0 +1,38 @@
+name: Weekly Twitter Analytics Pipeline
+
+on:
+  schedule:
+    - cron: '0 9 * * 1' # Lundi 9h UTC
+  workflow_dispatch:
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    env:
+      X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+      X_OWNED_USERNAME: ${{ secrets.X_OWNED_USERNAME }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
+      SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run extraction + load pipeline (Phase 1 -> Phase 2)
+        run: python src/run_pipeline.py
+
+      - name: Run dbt models (Phase 3)
+        run: dbt run --project-dir dbt_project --profiles-dir dbt_project
+
+      - name: Run dbt tests
+        run: dbt test --project-dir dbt_project --profiles-dir dbt_project

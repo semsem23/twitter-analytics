@@ -1,0 +1,15 @@
+twitter_analytics:
+  target: prod
+  outputs:
+    prod:
+      type: postgres
+      # Session Pooler Supabase (port 5432, IPv4) — jamais la connexion directe (IPv6),
+      # incompatible avec GitHub Actions. Host format : aws-0-{region}.pooler.supabase.com
+      # User format : postgres.{project_ref}
+      host: "{{ env_var('SUPABASE_DB_HOST') }}"
+      port: "{{ env_var('SUPABASE_DB_PORT', '5432') | as_number }}"
+      user: "{{ env_var('SUPABASE_DB_USER') }}"
+      password: "{{ env_var('SUPABASE_DB_PASSWORD') }}"
+      dbname: "{{ env_var('SUPABASE_DB_NAME', 'postgres') }}"
+      schema: public
+      threads: 4
