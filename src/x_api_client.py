@@ -63,8 +63,22 @@ def _call_with_retry(func, *args, **kwargs):
             time.sleep(wait_seconds)
 
 
+def last_complete_week(now: datetime) -> tuple[datetime, datetime]:
+    """Retourne la fenetre [lundi 00:00 UTC, lundi suivant 00:00 UTC) de la derniere semaine complete.
+
+    Le pipeline tourne le lundi matin et doit couvrir la semaine civile ecoulee
+    (ex. run du lundi 14/09 -> fenetre du lundi 07/09 au dimanche 13/09 inclus),
+    et non une fenetre glissante de 7 jours se terminant a l'instant du run.
+    Bornes en UTC, coherentes avec le date_trunc('week', ...) du modele dbt.
+    """
+    current_week_start = (now - timedelta(days=now.weekday())).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    return current_week_start - timedelta(days=7), current_week_start
+
+
 def fetch_weekly_tweets(username: str) -> pd.DataFrame:
-    """Récupère les métriques publiques des tweets des 7 derniers jours pour `username`.
+    """Récupère les métriques publiques des tweets de la dernière semaine complète pour `username`.
 
     Vérifie que `username` correspond bien au compte associé à ce Bearer Token
     (variable X_OWNED_USERNAME), afin de rester au tarif "Owned Read" plutôt que standard.
@@ -99,7 +113,12 @@ def fetch_weekly_tweets(username: str) -> pd.DataFrame:
 
     user_id = user_response.data.id
 
-    start_time = datetime.now(timezone.utc) - timedelta(days=7)
+    start_time, end_time = last_complete_week(datetime.now(timezone.utc))
+    logger.info(
+        "Fenetre d'extraction : %s -> %s (exclu).",
+        start_time.date(),
+        end_time.date(),
+    )
 
     rows: list[dict] = []
     pagination_token = None
@@ -108,6 +127,7 @@ def fetch_weekly_tweets(username: str) -> pd.DataFrame:
             client.get_users_tweets,
             id=user_id,
             start_time=start_time,
+            end_time=end_time,
             tweet_fields=["public_metrics", "created_at", "text"],
             max_results=100,
             pagination_token=pagination_token,

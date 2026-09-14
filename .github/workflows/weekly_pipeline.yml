@@ -2,7 +2,20 @@ name: Weekly Twitter Analytics Pipeline
 
 on:
   schedule:
-    - cron: '0 9 * * 1' # Lundi 9h UTC
+    # Lundi 6h17 Paris (= 4h17 UTC en CEST). Le pipeline extrait la semaine
+    # civile precedente : run du lundi 14/09 -> tweets du 07/09 au 13/09.
+    #
+    # Minute decalee (pas :00) : les crons pile a l'heure sont les plus
+    # susceptibles d'etre retardes ou purement abandonnes par GitHub.
+    #
+    # GitHub Actions ne gere pas les fuseaux : en heure d'hiver (CET) ce run
+    # tombera a 5h17 Paris. Sans impact sur les donnees, la fenetre extraite
+    # est calculee en UTC et ne depend pas de l'heure du run.
+    - cron: '17 4 * * 1'
+    # Filet de securite : si le run du matin est abandonne, celui-ci rattrape.
+    # Sans risque de double comptage, stg_tweet_metrics deduplique par
+    # (tweet_id, extraction_week) et ne garde que le dernier instantane.
+    - cron: '17 13 * * 1'
   workflow_dispatch:
 
 jobs:
