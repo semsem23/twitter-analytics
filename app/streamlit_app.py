@@ -6,12 +6,14 @@ et stg_tweet_metrics). Aucune écriture, aucun appel à l'API X.
 
 from __future__ import annotations
 
+import base64
 import os
-from urllib.parse import quote_plus
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
+from cryptography.hazmat.primitives import serialization
+from snowflake.sqlalchemy import URL
 from sqlalchemy import create_engine, text
 
 # Palette validée (mode clair) — voir la skill dataviz :
@@ -41,7 +43,9 @@ def _setting(key: str, default: str | None = None) -> str:
     if value:
         return value
     try:
-        if key in st.secrets:
+        # load_if_toml_exists() n'affiche rien sans secrets.toml (cas local avec
+        # .env et paramètre optionnel absent, ex. SNOWFLAKE_PRIVATE_KEY_PASSPHRASE).
+        if st.secrets.load_if_toml_exists() and key in st.secrets:
             return str(st.secrets[key])
     except Exception:
         pass
@@ -50,21 +54,51 @@ def _setting(key: str, default: str | None = None) -> str:
     raise RuntimeError(f"Paramètre manquant : {key} (variable d'environnement ou secret Streamlit).")
 
 
+def _private_key_der(private_key: str, passphrase: str | None) -> bytes:
+    """Clé privée -> DER PKCS#8, même convention que src/load_to_snowflake.py et dbt.
+
+    PEM complet si la valeur commence par "-", sinon base64 du DER sur une ligne.
+    """
+    value = private_key.strip().replace("\\n", "\n")
+    password = passphrase.encode() if passphrase else None
+    if value.startswith("-"):
+        key = serialization.load_pem_private_key(value.encode(), password=password)
+    else:
+        key = serialization.load_der_private_key(base64.b64decode(value), password=password)
+    return key.private_bytes(
+        serialization.Encoding.DER, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    )
+
+
 @st.cache_resource
 def get_engine():
-    """Connexion SQLAlchemy au Session Pooler Supabase (port 5432, IPv4)."""
-    user = quote_plus(_setting("SUPABASE_DB_USER"))
-    password = quote_plus(_setting("SUPABASE_DB_PASSWORD"))
-    host = _setting("SUPABASE_DB_HOST")
-    port = _setting("SUPABASE_DB_PORT", "5432")
-    dbname = _setting("SUPABASE_DB_NAME", "postgres")
-    return create_engine(f"postgresql+psycopg2://{user}:{password}@{host}:{port}/{dbname}", pool_pre_ping=True)
+    """Connexion SQLAlchemy à Snowflake (utilisateur de service, paire de clés).
+
+    Chaque requête non mise en cache réveille le warehouse (facturé 60 s minimum) :
+    le cache de 10 min sur load_weekly / load_tweets limite les reprises.
+    """
+    url = URL(
+        account=_setting("SNOWFLAKE_ACCOUNT"),
+        user=_setting("SNOWFLAKE_USER"),
+        role=_setting("SNOWFLAKE_ROLE"),
+        warehouse=_setting("SNOWFLAKE_WAREHOUSE"),
+        database=_setting("SNOWFLAKE_DATABASE"),
+        schema=_setting("SNOWFLAKE_SCHEMA"),
+    )
+    private_key = _private_key_der(
+        _setting("SNOWFLAKE_PRIVATE_KEY"),
+        _setting("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", ""),
+    )
+    return create_engine(url, connect_args={"private_key": private_key}, pool_pre_ping=True)
 
 
 @st.cache_data(ttl=600)
 def load_weekly() -> pd.DataFrame:
     with get_engine().connect() as conn:
-        return pd.read_sql(text("select * from tweet_engagement_weekly order by extraction_week"), conn)
+        df = pd.read_sql(text("select * from tweet_engagement_weekly order by extraction_week"), conn)
+    # Snowflake renvoie les identifiants non quotés en MAJUSCULES.
+    df.columns = df.columns.str.lower()
+    return df
 
 
 @st.cache_data(ttl=600)
@@ -75,7 +109,9 @@ def load_tweets() -> pd.DataFrame:
         order by impressions desc
     """
     with get_engine().connect() as conn:
-        return pd.read_sql(text(query), conn)
+        df = pd.read_sql(text(query), conn)
+    df.columns = df.columns.str.lower()
+    return df
 
 
 def style_axes(fig: go.Figure, *, show_grid_y: bool = True) -> go.Figure:
@@ -112,7 +148,7 @@ try:
     weekly = load_weekly()
     tweets = load_tweets()
 except Exception as exc:  # connexion/credentials : message lisible plutôt qu'une stack trace
-    st.error(f"Connexion à Supabase impossible : {exc}")
+    st.error(f"Connexion à Snowflake impossible : {exc}")
     st.stop()
 
 if weekly.empty:
