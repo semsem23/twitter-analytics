@@ -7,10 +7,11 @@ sources:
     tables:
       - name: tweet_metrics_raw
         description: "Métriques brutes des tweets, un instantané par run hebdomadaire (append-only, jamais d'overwrite)."
-        loaded_at_field: extracted_at
-        freshness:
-          warn_after: { count: 8, period: day }
-          error_after: { count: 14, period: day }
+        config:
+          loaded_at_field: extracted_at
+          freshness:
+            warn_after: { count: 8, period: day }
+            error_after: { count: 14, period: day }
         columns:
           - name: tweet_id
             description: "Identifiant du tweet."
@@ -30,7 +31,8 @@ sources:
           x.com → Analytics → Overview (non disponibles via l'API X). Upsert par
           scripts/load_x_account_analytics.py : une ligne par jour, l'export le
           plus récent l'emporte.
-        loaded_at_field: loaded_at
+        config:
+          loaded_at_field: loaded_at
         columns:
           - name: metric_date
             description: "Jour (fuseau de l'export X)."
