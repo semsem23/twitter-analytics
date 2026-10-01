@@ -55,22 +55,31 @@ def private_key_der(private_key: str, passphrase: str | None = None) -> bytes:
     )
 
 
+def _env(name: str) -> str:
+    """Variable d'environnement sans espaces ni retour à la ligne parasites.
+
+    Un secret GitHub collé avec un saut de ligne final suffit à invalider le JWT
+    de l'auth par paire de clés (le nom d'utilisateur fait partie du jeton).
+    """
+    return os.environ.get(name, "").strip()
+
+
 def get_connection() -> snowflake.connector.SnowflakeConnection:
     """Ouvre une connexion Snowflake à partir des variables d'environnement."""
-    missing = [name for name in REQUIRED_ENV_VARS if not os.environ.get(name)]
+    missing = [name for name in REQUIRED_ENV_VARS if not _env(name)]
     if missing:
         raise RuntimeError(f"Variables d'environnement Snowflake manquantes : {', '.join(missing)}.")
 
     return snowflake.connector.connect(
-        account=os.environ["SNOWFLAKE_ACCOUNT"],
-        user=os.environ["SNOWFLAKE_USER"],
-        role=os.environ["SNOWFLAKE_ROLE"],
-        warehouse=os.environ["SNOWFLAKE_WAREHOUSE"],
-        database=os.environ["SNOWFLAKE_DATABASE"],
-        schema=os.environ["SNOWFLAKE_SCHEMA"],
+        account=_env("SNOWFLAKE_ACCOUNT"),
+        user=_env("SNOWFLAKE_USER"),
+        role=_env("SNOWFLAKE_ROLE"),
+        warehouse=_env("SNOWFLAKE_WAREHOUSE"),
+        database=_env("SNOWFLAKE_DATABASE"),
+        schema=_env("SNOWFLAKE_SCHEMA"),
         private_key=private_key_der(
-            os.environ["SNOWFLAKE_PRIVATE_KEY"],
-            os.environ.get("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"),
+            _env("SNOWFLAKE_PRIVATE_KEY"),
+            _env("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE"),
         ),
         application="twitter-analytics",
     )

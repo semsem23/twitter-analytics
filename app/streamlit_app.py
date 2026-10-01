@@ -39,14 +39,15 @@ def _setting(key: str, default: str | None = None) -> str:
     L'environnement est consulté en premier à dessein — toucher `st.secrets` sans
     fichier secrets.toml fait afficher une erreur par Streamlit lui-même.
     """
-    value = os.environ.get(key)
+    # strip() : un saut de ligne final dans un secret invalide le JWT Snowflake.
+    value = os.environ.get(key, "").strip()
     if value:
         return value
     try:
         # load_if_toml_exists() n'affiche rien sans secrets.toml (cas local avec
         # .env et paramètre optionnel absent, ex. SNOWFLAKE_PRIVATE_KEY_PASSPHRASE).
         if st.secrets.load_if_toml_exists() and key in st.secrets:
-            return str(st.secrets[key])
+            return str(st.secrets[key]).strip()
     except Exception:
         pass
     if default is not None:

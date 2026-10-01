@@ -121,3 +121,22 @@ def test_private_key_der_decrypts_with_passphrase(rsa_key):
     ).decode()
 
     assert private_key_der(encrypted_pem, "s3cret") == _expected_der(rsa_key)
+
+
+@patch("src.load_to_snowflake.snowflake.connector.connect")
+def test_get_connection_strips_trailing_newlines_from_secrets(mock_connect, monkeypatch, rsa_key):
+    # Secret GitHub collé avec un saut de ligne final : invaliderait le JWT.
+    pem = rsa_key.private_bytes(
+        serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
+    ).decode()
+    for name in REQUIRED_ENV_VARS:
+        monkeypatch.setenv(name, f"VALUE_{name}\n")
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY", pem + "\n")
+    monkeypatch.setenv("SNOWFLAKE_PRIVATE_KEY_PASSPHRASE", "\n")
+
+    get_connection()
+
+    kwargs = mock_connect.call_args.kwargs
+    assert kwargs["user"] == "VALUE_SNOWFLAKE_USER"
+    assert kwargs["database"] == "VALUE_SNOWFLAKE_DATABASE"
+    assert kwargs["private_key"] == _expected_der(rsa_key)

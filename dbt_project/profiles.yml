@@ -6,14 +6,15 @@ twitter_analytics:
       # Authentification par paire de clés uniquement (utilisateur de service
       # TYPE = SERVICE, voir sql/snowflake_setup.sql) : pas de mot de passe.
       # SNOWFLAKE_PRIVATE_KEY = PEM complet, ou corps du PEM en base64 sur une ligne.
-      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
-      user: "{{ env_var('SNOWFLAKE_USER') }}"
-      private_key: "{{ env_var('SNOWFLAKE_PRIVATE_KEY') }}"
-      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
-      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
-      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
-      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
-      schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"
+      # | trim : un secret collé avec un saut de ligne final invalide le JWT.
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') | trim }}"
+      user: "{{ env_var('SNOWFLAKE_USER') | trim }}"
+      private_key: "{{ env_var('SNOWFLAKE_PRIVATE_KEY') | trim }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') | trim }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') | trim }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') | trim }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') | trim }}"
+      schema: "{{ env_var('SNOWFLAKE_SCHEMA') | trim }}"
       threads: 4
       # Pas de keep-alive : le warehouse doit pouvoir s'auto-suspendre (AUTO_SUSPEND = 60).
       client_session_keep_alive: false
