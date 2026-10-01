@@ -31,7 +31,8 @@ twitter-analytics-pipeline/
 │   ├── load_to_snowflake.py
 │   └── run_pipeline.py
 ├── scripts/
-│   └── migrate_supabase_to_snowflake.py   # one-off, à supprimer après le cutover
+│   ├── migrate_supabase_to_snowflake.py   # one-off, à supprimer après le cutover
+│   └── load_x_account_analytics.py        # exports CSV "Account overview" de X
 ├── sql/
 │   └── snowflake_setup.sql
 ├── tests/
@@ -106,6 +107,21 @@ python scripts/migrate_supabase_to_snowflake.py
 ```
 
 Le script est idempotent : il saute les lignes déjà présentes (même `tweet_id` + même `extracted_at`) et peut être relancé sans risque de doublon. Les `extracted_at` d'origine sont conservés, donc `extraction_week` est identique des deux côtés.
+
+### 4 bis. Métriques quotidiennes du compte (exports CSV X)
+
+Impressions du jour, visites de profil, nouveaux abonnés / désabonnements… sont des métriques **au niveau du compte** que l'API X ne fournit pas : elles viennent de l'export manuel **x.com → Analytics → Overview → Export** (`account_overview_analytics.csv`).
+
+```bash
+python scripts/load_x_account_analytics.py ~/Downloads/account_overview_analytics.csv --dry-run
+python scripts/load_x_account_analytics.py ~/Downloads/account_overview_analytics.csv
+```
+
+Le script crée `ACCOUNT_DAILY_METRICS_RAW` si besoin et fait un `MERGE` sur la date : une ligne par jour, les exports peuvent se chevaucher, et pour un même jour la ligne de l'export le plus récent l'emporte (X révise les derniers jours). Recharger un vieux fichier n'écrase jamais des chiffres plus frais.
+
+Modèles dbt : `stg_account_daily_metrics` (jour + semaine du lundi, `net_follows`) et `account_metrics_weekly` (même découpage lundi → dimanche que `tweet_engagement_weekly`, `days_covered < 7` = semaine partielle).
+
+Pour garder la série à jour : refaire un export (X propose jusqu'à 90 jours) et relancer le script, par exemple une fois par mois.
 
 ### 5. Connexion dbt
 

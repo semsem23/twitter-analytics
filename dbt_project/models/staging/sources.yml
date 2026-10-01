@@ -24,3 +24,15 @@ sources:
           - name: impressions
           - name: extracted_at
             description: "Timestamp UTC du run d'extraction ayant produit cette ligne."
+      - name: account_daily_metrics_raw
+        description: >
+          Métriques quotidiennes au niveau du compte, issues des exports manuels
+          x.com → Analytics → Overview (non disponibles via l'API X). Upsert par
+          scripts/load_x_account_analytics.py : une ligne par jour, l'export le
+          plus récent l'emporte.
+        loaded_at_field: loaded_at
+        columns:
+          - name: metric_date
+            description: "Jour (fuseau de l'export X)."
+          - name: export_max_date
+            description: "Dernier jour couvert par l'export source de la ligne."

@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: account_metrics_weekly
+    description: "Métriques du compte agrégées par semaine (lundi). days_covered < 7 = semaine partielle."
+    columns:
+      - name: metric_week
+        data_tests:
+          - unique
+          - not_null
