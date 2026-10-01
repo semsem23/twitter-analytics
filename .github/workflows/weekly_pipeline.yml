@@ -24,11 +24,17 @@ jobs:
     env:
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
       X_OWNED_USERNAME: ${{ secrets.X_OWNED_USERNAME }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
-      SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # Utilisateur de service Snowflake, auth par paire de clés (pas de mot de passe).
+      # Le loader Python et dbt lisent les memes variables.
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+      # Optionnel : vide si la cle privee n'est pas chiffree.
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,10 +47,10 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run extraction + load pipeline (Phase 1 -> Phase 2)
+      - name: Run extraction + load to Snowflake (Phase 1 -> Phase 2)
         run: python src/run_pipeline.py
 
-      - name: Run dbt models (Phase 3)
+      - name: Run dbt models on Snowflake (Phase 3)
         run: dbt run --project-dir dbt_project --profiles-dir dbt_project
 
       - name: Run dbt tests
