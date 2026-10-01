@@ -17,6 +17,11 @@ on:
     # (tweet_id, extraction_week) et ne garde que le dernier instantane.
     - cron: '17 13 * * 1'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run : extraction API X (facturee) sans aucune ecriture, dbt debug + compile au lieu de run + test'
+        type: boolean
+        default: false
 
 jobs:
   run-pipeline:
@@ -47,11 +52,21 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      # Les crons n'ont pas d'inputs : inputs.dry_run est vide, donc run complet.
       - name: Run extraction + load to Snowflake (Phase 1 -> Phase 2)
-        run: python src/run_pipeline.py
+        run: python src/run_pipeline.py ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Run dbt models on Snowflake (Phase 3)
+        if: ${{ !inputs.dry_run }}
         run: dbt run --project-dir dbt_project --profiles-dir dbt_project
 
       - name: Run dbt tests
+        if: ${{ !inputs.dry_run }}
         run: dbt test --project-dir dbt_project --profiles-dir dbt_project
+
+      # Dry run : connexion + rendu SQL des modeles, aucun objet cree ni modifie.
+      - name: Check dbt connection and compile models (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          dbt debug --project-dir dbt_project --profiles-dir dbt_project
+          dbt compile --project-dir dbt_project --profiles-dir dbt_project
