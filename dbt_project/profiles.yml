@@ -2,14 +2,19 @@ twitter_analytics:
   target: prod
   outputs:
     prod:
-      type: postgres
-      # Session Pooler Supabase (port 5432, IPv4) — jamais la connexion directe (IPv6),
-      # incompatible avec GitHub Actions. Host format : aws-0-{region}.pooler.supabase.com
-      # User format : postgres.{project_ref}
-      host: "{{ env_var('SUPABASE_DB_HOST') }}"
-      port: "{{ env_var('SUPABASE_DB_PORT', '5432') | as_number }}"
-      user: "{{ env_var('SUPABASE_DB_USER') }}"
-      password: "{{ env_var('SUPABASE_DB_PASSWORD') }}"
-      dbname: "{{ env_var('SUPABASE_DB_NAME', 'postgres') }}"
-      schema: public
+      type: snowflake
+      # Authentification par paire de clés uniquement (utilisateur de service
+      # TYPE = SERVICE, voir sql/snowflake_setup.sql) : pas de mot de passe.
+      # SNOWFLAKE_PRIVATE_KEY = PEM complet, ou corps du PEM en base64 sur une ligne.
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key: "{{ env_var('SNOWFLAKE_PRIVATE_KEY') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
+      role: "{{ env_var('SNOWFLAKE_ROLE') }}"
+      warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
+      database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
+      schema: "{{ env_var('SNOWFLAKE_SCHEMA') }}"
       threads: 4
+      # Pas de keep-alive : le warehouse doit pouvoir s'auto-suspendre (AUTO_SUSPEND = 60).
+      client_session_keep_alive: false
+      query_tag: twitter_analytics_dbt

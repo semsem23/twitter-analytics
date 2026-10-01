@@ -10,8 +10,9 @@ select
     sum(retweets) as total_retweets,
     sum(replies) as total_replies,
     sum(impressions) as total_impressions,
+    -- ::numeric seul vaudrait NUMBER(38, 0) sur Snowflake : échelle explicite.
     round(
-        (sum(likes) + sum(retweets))::numeric / nullif(sum(impressions), 0) * 100,
+        (sum(likes) + sum(retweets))::number(38, 10) / nullif(sum(impressions), 0) * 100,
         2
     ) as engagement_rate
 from weekly

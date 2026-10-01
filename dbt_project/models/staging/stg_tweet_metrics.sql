@@ -6,21 +6,27 @@
 -- extraction_week = semaine COUVERTE par les données, pas semaine du run : le
 -- pipeline tourne le lundi matin et extrait la semaine civile précédente
 -- (run du 14/09 -> tweets du 07/09 au 13/09), d'où le décalage de 7 jours
--- appliqué à extracted_at.
+-- appliqué au lundi de la semaine d'extracted_at.
 with source as (
     select * from {{ source('raw', 'tweet_metrics_raw') }}
     where tweet_id is not null
 ),
 
+with_week as (
+    select
+        *,
+        dateadd('day', -7, {{ week_start_monday("convert_timezone('UTC', extracted_at)") }}) as extraction_week
+    from source
+),
+
 deduplicated as (
     select
         *,
-        date_trunc('week', extracted_at) - interval '7 days' as extraction_week,
         row_number() over (
-            partition by tweet_id, date_trunc('week', extracted_at) - interval '7 days'
+            partition by tweet_id, extraction_week
             order by extracted_at desc
         ) as row_num
-    from source
+    from with_week
 )
 
 select
