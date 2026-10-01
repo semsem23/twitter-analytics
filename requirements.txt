@@ -12,5 +12,7 @@ streamlit>=1.39
 plotly>=5.24
 sqlalchemy>=2.0
 snowflake-sqlalchemy>=1.7
+# Lecture des exports X enregistrés en .xlsx (scripts/load_x_account_analytics.py).
+openpyxl>=3.1
 # Uniquement pour scripts/migrate_supabase_to_snowflake.py : à retirer après le cutover.
 supabase>=2.7,<3

@@ -77,14 +77,27 @@ create table if not exists {TABLE_NAME} (
 
 
 def parse_export(path: Path) -> pd.DataFrame:
-    """Lit un export "Account overview" et le normalise (une ligne par jour)."""
-    raw = pd.read_csv(path)
+    """Lit un export "Account overview" (.csv brut de X, ou .xlsx enregistré depuis Excel)."""
+    if path.suffix.lower() in (".xlsx", ".xlsm"):
+        raw = pd.read_excel(path)
+    else:
+        raw = pd.read_csv(path)
     missing = set(COLUMN_MAP) - set(raw.columns)
     if missing:
         raise ValueError(f"{path.name} : colonnes absentes {sorted(missing)} — pas un export Account overview ?")
 
     df = raw[list(COLUMN_MAP)].rename(columns=COLUMN_MAP)
-    df["metric_date"] = pd.to_datetime(df["metric_date"], format="%a, %b %d, %Y").dt.date
+    if pd.api.types.is_datetime64_any_dtype(df["metric_date"]):
+        # .xlsx : Excel stocke de vraies dates, aucune ambiguïté jour/mois.
+        df["metric_date"] = df["metric_date"].dt.date
+    else:
+        try:
+            df["metric_date"] = pd.to_datetime(df["metric_date"], format="%a, %b %d, %Y").dt.date
+        except ValueError as exc:
+            raise ValueError(
+                f"{path.name} : dates au format inattendu ({df['metric_date'].iloc[0]!r}). Utiliser le CSV "
+                "d'origine de X, ou l'enregistrer en .xlsx — un CSV ré-enregistré par Excel change le format des dates."
+            ) from exc
     df[METRIC_COLUMNS] = df[METRIC_COLUMNS].fillna(0).astype("int64")
     if df["metric_date"].duplicated().any():
         raise ValueError(f"{path.name} : plusieurs lignes pour un même jour.")

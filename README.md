@@ -121,6 +121,8 @@ Le script crée `ACCOUNT_DAILY_METRICS_RAW` si besoin et fait un `MERGE` sur la 
 
 Modèles dbt : `stg_account_daily_metrics` (jour + semaine du lundi, `net_follows`) et `account_metrics_weekly` (même découpage lundi → dimanche que `tweet_engagement_weekly`, `days_covered < 7` = semaine partielle).
 
+Le fichier peut être le CSV d'origine de X ou un `.xlsx` enregistré depuis Excel. Ne pas ré-enregistrer le CSV depuis Excel (il réécrit les dates, ex. `27/09/2026`) : le script le refuse avec un message explicite.
+
 Pour garder la série à jour : refaire un export (X propose jusqu'à 90 jours) et relancer le script, par exemple une fois par mois.
 
 ### 5. Connexion dbt
