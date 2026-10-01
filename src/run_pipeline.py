@@ -1,4 +1,4 @@
-"""Point d'entrée du pipeline hebdomadaire : extraction API X -> chargement Supabase.
+"""Point d'entrée du pipeline hebdomadaire : extraction API X -> chargement Snowflake.
 
 Enchaîne Phase 1 (extraction) et Phase 2 (chargement). Pas encore de dbt ni de Streamlit.
 """
@@ -10,7 +10,7 @@ import os
 
 from dotenv import load_dotenv
 
-from load_to_supabase import load_to_supabase
+from load_to_snowflake import load_to_snowflake
 from x_api_client import fetch_weekly_tweets
 
 logging.basicConfig(level=logging.INFO)
@@ -25,7 +25,7 @@ def run() -> None:
         raise RuntimeError("La variable d'environnement X_OWNED_USERNAME n'est pas définie.")
 
     df = fetch_weekly_tweets(username)
-    load_to_supabase(df)
+    load_to_snowflake(df)
 
 
 if __name__ == "__main__":
