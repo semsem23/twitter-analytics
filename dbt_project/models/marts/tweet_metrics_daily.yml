@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: tweet_metrics_daily
+    description: "Tweets agrégés par jour de publication (UTC), dernier instantané de chaque tweet."
+    columns:
+      - name: publication_date
+        data_tests:
+          - unique
+          - not_null

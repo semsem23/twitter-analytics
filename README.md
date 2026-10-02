@@ -53,7 +53,8 @@ twitter-analytics-pipeline/
 │       └── marts/
 │           └── tweet_engagement_weekly.sql
 ├── app/
-│   └── streamlit_app.py
+│   ├── streamlit_app.py
+│   └── periods.py                       # regroupement jour / semaine / mois
 ├── .streamlit/config.toml
 ├── .env.example
 ├── requirements.txt
@@ -122,6 +123,15 @@ Le script crée `ACCOUNT_DAILY_METRICS_RAW` si besoin et fait un `MERGE` sur la 
 Modèles dbt : `stg_account_daily_metrics` (jour + semaine du lundi, `net_follows`) et `account_metrics_weekly` (même découpage lundi → dimanche que `tweet_engagement_weekly`, `days_covered < 7` = semaine partielle).
 
 Le fichier peut être le CSV d'origine de X ou un `.xlsx` enregistré depuis Excel. Ne pas ré-enregistrer le CSV depuis Excel (il réécrit les dates, ex. `27/09/2026`) : le script le refuse avec un message explicite.
+
+### 4 ter. Dashboard : jour / semaine / mois
+
+Le dashboard lit des séries **quotidiennes** et un filtre *Granularité* (Jour / Semaine / Mois) les regroupe à l'affichage, pour les deux sections :
+
+- **Compte** : `stg_account_daily_metrics` (une ligne par jour d'export X) ;
+- **Tweets** : `tweet_metrics_daily`, tweets agrégés par **jour de publication** (UTC), en gardant le dernier relevé de chaque tweet.
+
+Le pipeline tourne une fois par semaine, mais chaque tweet est stocké individuellement avec son heure de publication : un run du lundi remplit les 7 jours de la semaine écoulée. Semaines du lundi au dimanche, mois civils ; une période que les données ne couvrent pas entièrement est estompée (« incomplète » au survol). Regroupement dans `app/periods.py` (testé dans `tests/test_periods.py`).
 
 Pour garder la série à jour : refaire un export (X propose jusqu'à 90 jours) et relancer le script, par exemple une fois par mois.
 
