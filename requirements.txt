@@ -10,7 +10,7 @@ dbt-core>=1.11,<2
 dbt-snowflake>=1.11,<2
 streamlit>=1.39
 plotly>=5.24
-sqlalchemy>=2.0
+sqlalchemy>=2.0,<2.1
 snowflake-sqlalchemy>=1.7
 # Lecture des exports X enregistrés en .xlsx (scripts/load_x_account_analytics.py).
 openpyxl>=3.1
