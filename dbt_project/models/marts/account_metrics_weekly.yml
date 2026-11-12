@@ -1,0 +1,14 @@
+version: 2
+
+models:
+  - name: account_metrics_weekly
+    description: "Métriques du compte agrégées par semaine (lundi). days_covered < 7 = semaine partielle."
+    columns:
+      - name: metric_week
+        data_tests:
+          - unique
+          - not_null
+      - name: engagement_rate
+        description: >
+          engagements X / impressions * 100 (export Analytics, inclut clics et visites de profil).
+          Différent de tweet_engagement_weekly.public_engagement_rate = (likes + retweets) / impressions.

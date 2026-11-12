@@ -11,4 +11,5 @@ dbt_project/logs/
 dbt_project/.user.yml
 logs/
 CLAUDE_CODE_PROMPT.md
-sql/
+sql/*
+!sql/snowflake_setup.sql

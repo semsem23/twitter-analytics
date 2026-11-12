@@ -1,0 +1,10 @@
+version: 2
+
+models:
+  - name: stg_account_daily_metrics
+    description: "Métriques quotidiennes du compte, nettoyées, avec la semaine (lundi)."
+    columns:
+      - name: metric_date
+        data_tests:
+          - unique
+          - not_null

@@ -2,14 +2,16 @@ version: 2
 
 sources:
   - name: raw
-    schema: public
+    # Même schéma que les modèles dbt (SNOWFLAKE_SCHEMA), comme "public" côté Supabase.
+    schema: "{{ target.schema }}"
     tables:
       - name: tweet_metrics_raw
         description: "Métriques brutes des tweets, un instantané par run hebdomadaire (append-only, jamais d'overwrite)."
-        loaded_at_field: extracted_at
-        freshness:
-          warn_after: { count: 8, period: day }
-          error_after: { count: 14, period: day }
+        config:
+          loaded_at_field: extracted_at
+          freshness:
+            warn_after: { count: 8, period: day }
+            error_after: { count: 14, period: day }
         columns:
           - name: tweet_id
             description: "Identifiant du tweet."
@@ -23,3 +25,16 @@ sources:
           - name: impressions
           - name: extracted_at
             description: "Timestamp UTC du run d'extraction ayant produit cette ligne."
+      - name: account_daily_metrics_raw
+        description: >
+          Métriques quotidiennes au niveau du compte, issues des exports manuels
+          x.com → Analytics → Overview (non disponibles via l'API X). Upsert par
+          scripts/load_x_account_analytics.py : une ligne par jour, l'export le
+          plus récent l'emporte.
+        config:
+          loaded_at_field: loaded_at
+        columns:
+          - name: metric_date
+            description: "Jour (fuseau de l'export X)."
+          - name: export_max_date
+            description: "Dernier jour couvert par l'export source de la ligne."

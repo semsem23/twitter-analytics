@@ -2,21 +2,26 @@ name: Weekly Twitter Analytics Pipeline
 
 on:
   schedule:
-    # Lundi 6h17 Paris (= 4h17 UTC en CEST). Le pipeline extrait la semaine
+    # Lundi 1h10 UTC (= 3h10 Paris en CEST). Le pipeline extrait la semaine
     # civile precedente : run du lundi 14/09 -> tweets du 07/09 au 13/09.
     #
     # Minute decalee (pas :00) : les crons pile a l'heure sont les plus
     # susceptibles d'etre retardes ou purement abandonnes par GitHub.
     #
     # GitHub Actions ne gere pas les fuseaux : en heure d'hiver (CET) ce run
-    # tombera a 5h17 Paris. Sans impact sur les donnees, la fenetre extraite
+    # tombera a 2h10 Paris. Sans impact sur les donnees, la fenetre extraite
     # est calculee en UTC et ne depend pas de l'heure du run.
-    - cron: '17 4 * * 1'
+    - cron: '10 1 * * 1'
     # Filet de securite : si le run du matin est abandonne, celui-ci rattrape.
     # Sans risque de double comptage, stg_tweet_metrics deduplique par
     # (tweet_id, extraction_week) et ne garde que le dernier instantane.
     - cron: '17 13 * * 1'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run : extraction API X (facturee) sans aucune ecriture, dbt debug + compile au lieu de run + test'
+        type: boolean
+        default: false
 
 jobs:
   run-pipeline:
@@ -24,11 +29,17 @@ jobs:
     env:
       X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
       X_OWNED_USERNAME: ${{ secrets.X_OWNED_USERNAME }}
-      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-      SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-      SUPABASE_DB_HOST: ${{ secrets.SUPABASE_DB_HOST }}
-      SUPABASE_DB_USER: ${{ secrets.SUPABASE_DB_USER }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # Utilisateur de service Snowflake, auth par paire de clés (pas de mot de passe).
+      # Le loader Python et dbt lisent les memes variables.
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_ROLE: ${{ secrets.SNOWFLAKE_ROLE }}
+      SNOWFLAKE_WAREHOUSE: ${{ secrets.SNOWFLAKE_WAREHOUSE }}
+      SNOWFLAKE_DATABASE: ${{ secrets.SNOWFLAKE_DATABASE }}
+      SNOWFLAKE_SCHEMA: ${{ secrets.SNOWFLAKE_SCHEMA }}
+      SNOWFLAKE_PRIVATE_KEY: ${{ secrets.SNOWFLAKE_PRIVATE_KEY }}
+      # Optionnel : vide si la cle privee n'est pas chiffree.
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,11 +52,25 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run extraction + load pipeline (Phase 1 -> Phase 2)
-        run: python src/run_pipeline.py
+      # Les crons n'ont pas d'inputs : inputs.dry_run est vide, donc run complet.
+      - name: Run extraction + load to Snowflake (Phase 1 -> Phase 2)
+        run: python src/run_pipeline.py ${{ inputs.dry_run && '--dry-run' || '' }}
 
-      - name: Run dbt models (Phase 3)
+      - name: Check source freshness
+        if: ${{ !inputs.dry_run }}
+        run: dbt source freshness --project-dir dbt_project --profiles-dir dbt_project
+
+      - name: Run dbt models on Snowflake (Phase 3)
+        if: ${{ !inputs.dry_run }}
         run: dbt run --project-dir dbt_project --profiles-dir dbt_project
 
       - name: Run dbt tests
+        if: ${{ !inputs.dry_run }}
         run: dbt test --project-dir dbt_project --profiles-dir dbt_project
+
+      # Dry run : connexion + rendu SQL des modeles, aucun objet cree ni modifie.
+      - name: Check dbt connection and compile models (dry run)
+        if: ${{ inputs.dry_run }}
+        run: |
+          dbt debug --project-dir dbt_project --profiles-dir dbt_project
+          dbt compile --project-dir dbt_project --profiles-dir dbt_project
