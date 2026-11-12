@@ -1,0 +1,21 @@
+version: 2
+
+models:
+  - name: tweet_engagement_weekly
+    description: "Métriques des tweets agrégées par semaine couverte (lundi), dernier instantané par tweet."
+    columns:
+      - name: extraction_week
+        description: "Lundi (UTC) de la semaine couverte par l'extraction."
+        data_tests:
+          - unique
+          - not_null
+      - name: tweet_count
+        data_tests:
+          - not_null
+      - name: total_impressions
+        data_tests:
+          - not_null
+      - name: public_engagement_rate
+        description: >
+          (likes + retweets) / impressions * 100. Métrique publique API X, à ne pas
+          confondre avec account_metrics_weekly.engagement_rate (engagements X / impressions).

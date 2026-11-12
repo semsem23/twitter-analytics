@@ -1,4 +1,7 @@
--- Agrégation hebdomadaire des métriques d'engagement.
+-- Agrégation hebdomadaire des métriques d'engagement des tweets.
+-- public_engagement_rate = (likes + retweets) / impressions : seules les actions publiques
+-- exposées par l'API X. Différent de engagement_rate dans account_metrics_weekly
+-- (engagements X / impressions, export Analytics, qui inclut clics, visites de profil, etc.).
 with weekly as (
     select * from {{ ref('stg_tweet_metrics') }}
 )
@@ -14,7 +17,7 @@ select
     round(
         (sum(likes) + sum(retweets))::number(38, 10) / nullif(sum(impressions), 0) * 100,
         2
-    ) as engagement_rate
+    ) as public_engagement_rate
 from weekly
 group by extraction_week
 order by extraction_week

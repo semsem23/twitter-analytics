@@ -56,6 +56,10 @@ jobs:
       - name: Run extraction + load to Snowflake (Phase 1 -> Phase 2)
         run: python src/run_pipeline.py ${{ inputs.dry_run && '--dry-run' || '' }}
 
+      - name: Check source freshness
+        if: ${{ !inputs.dry_run }}
+        run: dbt source freshness --project-dir dbt_project --profiles-dir dbt_project
+
       - name: Run dbt models on Snowflake (Phase 3)
         if: ${{ !inputs.dry_run }}
         run: dbt run --project-dir dbt_project --profiles-dir dbt_project

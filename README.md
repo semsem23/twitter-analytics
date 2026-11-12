@@ -179,7 +179,7 @@ streamlit run app/streamlit_app.py
 
 ## Automatisation
 
-Le workflow `.github/workflows/weekly_pipeline.yml` tourne chaque lundi à 6h17 Paris (4h17 UTC), avec un second cron de rattrapage à 13h17 UTC, et peut être déclenché manuellement via l'onglet **Actions** (`workflow_dispatch`).
+Le workflow `.github/workflows/weekly_pipeline.yml` tourne chaque lundi à 01:10 UTC (3h10 Paris en heure d'été, 2h10 en hiver), avec un second cron de rattrapage à 13:17 UTC, et peut être déclenché manuellement via l'onglet **Actions** (`workflow_dispatch`).
 
 **Important** : GitHub n'exécute les `schedule` que sur la branche par défaut. Tant que cette version vit sur la branche `snowflake-migration`, elle ne tourne que sur déclenchement manuel :
 
