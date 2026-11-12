@@ -1,27 +1,27 @@
 # Twitter Analytics Pipeline
 
-Suivi hebdomadaire des métriques publiques du compte X **@ElCambur442953** (Geostratfor, bot de publication d'actualités).
+Weekly tracking of the public metrics of the X account **@ElCambur442953** (Geostratfor, a news-publishing bot).
 
 ## Architecture
 
 ```
-API X ──> GitHub Actions ──> Snowflake ──> dbt (dbt-snowflake) ──> Streamlit
-          (lundi, 2 crons)   TWITTER_ANALYTICS.ANALYTICS
-                             warehouse X-SMALL, auto-suspend 60 s
+X API ──> GitHub Actions ──> Snowflake ──> dbt (dbt-snowflake) ──> Streamlit
+          (Monday, 2 crons)  TWITTER_ANALYTICS.ANALYTICS
+                             X-SMALL warehouse, auto-suspend 60 s
 ```
 
-| Étape | Outil | Rôle |
+| Step | Tool | Role |
 |---|---|---|
-| Extraction | Python (Tweepy) | Récupère les métriques publiques des tweets de la semaine civile précédente |
-| Chargement | Python (`snowflake-connector-python`, `write_pandas`) | Append-only dans `TWEET_METRICS_RAW`, un `extracted_at` UTC par run |
-| Stockage | Snowflake (édition Standard) | Table brute + modèles dbt dans le schéma `ANALYTICS` |
-| Transformation | dbt (`dbt-snowflake`) | Staging → marts, tests de qualité |
-| Automatisation | GitHub Actions | Cron hebdomadaire (lundi matin, + rattrapage l'après-midi) |
-| Visualisation | Streamlit (`snowflake-sqlalchemy`) | Dashboard de suivi de l'engagement |
+| Extraction | Python (Tweepy) | Fetches the public metrics of the previous calendar week's tweets |
+| Loading | Python (`snowflake-connector-python`, `write_pandas`) | Append-only into `TWEET_METRICS_RAW`, one UTC `extracted_at` per run |
+| Storage | Snowflake (Standard edition) | Raw table + dbt models in the `ANALYTICS` schema |
+| Transformation | dbt (`dbt-snowflake`) | Staging → marts, data quality tests |
+| Automation | GitHub Actions | Weekly cron (Monday morning, + afternoon catch-up) |
+| Visualization | Streamlit (`snowflake-sqlalchemy`) | Engagement tracking dashboard |
 
-Toutes les connexions (loader, dbt, Streamlit) utilisent le même utilisateur de service Snowflake avec **authentification par paire de clés** — aucun mot de passe.
+All connections (loader, dbt, Streamlit) use the same Snowflake service user with **key-pair authentication** — no password.
 
-## Structure du repo
+## Repo structure
 
 ```
 twitter-analytics-pipeline/
@@ -31,8 +31,8 @@ twitter-analytics-pipeline/
 │   ├── load_to_snowflake.py
 │   └── run_pipeline.py
 ├── scripts/
-│   ├── migrate_supabase_to_snowflake.py   # one-off, à supprimer après le cutover
-│   └── load_x_account_analytics.py        # exports CSV "Account overview" de X
+│   ├── migrate_supabase_to_snowflake.py   # one-off, to delete after the cutover
+│   └── load_x_account_analytics.py        # X "Account overview" CSV exports
 ├── sql/
 │   └── snowflake_setup.sql
 ├── tests/
@@ -54,7 +54,7 @@ twitter-analytics-pipeline/
 │           └── tweet_engagement_weekly.sql
 ├── app/
 │   ├── streamlit_app.py
-│   └── periods.py                       # regroupement jour / semaine / mois
+│   └── periods.py                       # day / week / month grouping
 ├── .streamlit/config.toml
 ├── .env.example
 ├── requirements.txt
@@ -63,97 +63,97 @@ twitter-analytics-pipeline/
 
 ## Setup
 
-### 1. Paire de clés RSA (utilisateur de service)
+### 1. RSA key pair (service user)
 
 ```bash
 openssl genrsa 2048 | openssl pkcs8 -topk8 -inform PEM -out rsa_key.p8 -nocrypt
 openssl rsa -in rsa_key.p8 -pubout -out rsa_key.pub
 ```
 
-`rsa_key.p8` est la clé **privée** : ne jamais la committer ni la coller ailleurs que dans `.env`, les secrets GitHub et les secrets Streamlit. Pour une clé chiffrée, retirer `-nocrypt` et renseigner `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE`.
+`rsa_key.p8` is the **private** key: never commit it or paste it anywhere other than `.env`, GitHub secrets and Streamlit secrets. For an encrypted key, drop `-nocrypt` and set `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE`.
 
-### 2. Objets Snowflake
+### 2. Snowflake objects
 
-Dans une worksheet Snowsight (utilisateur avec `SYSADMIN` et `SECURITYADMIN`), exécuter [`sql/snowflake_setup.sql`](sql/snowflake_setup.sql) après avoir remplacé `<RSA_PUBLIC_KEY>` par le contenu de `rsa_key.pub` **sans** les lignes `BEGIN/END`. Le script, idempotent, crée :
+In a Snowsight worksheet (user with `SYSADMIN` and `SECURITYADMIN`), run [`sql/snowflake_setup.sql`](sql/snowflake_setup.sql) after replacing `<RSA_PUBLIC_KEY>` with the contents of `rsa_key.pub` **without** the `BEGIN/END` lines. The script is idempotent and creates:
 
-- le warehouse `TWITTER_ANALYTICS_WH` (X-SMALL, `AUTO_SUSPEND = 60`, `AUTO_RESUME = TRUE`) ;
-- la base `TWITTER_ANALYTICS` et le schéma `ANALYTICS` ;
-- la table brute `TWEET_METRICS_RAW` ;
-- le rôle `TWITTER_ANALYTICS_ROLE` et l'utilisateur de service `TWITTER_ANALYTICS_SVC` (`TYPE = SERVICE` : connexion par mot de passe impossible) ;
-- les droits minimaux (select/insert sur la table brute, création de vues/tables pour dbt).
+- the `TWITTER_ANALYTICS_WH` warehouse (X-SMALL, `AUTO_SUSPEND = 60`, `AUTO_RESUME = TRUE`);
+- the `TWITTER_ANALYTICS` database and the `ANALYTICS` schema;
+- the `TWEET_METRICS_RAW` raw table;
+- the `TWITTER_ANALYTICS_ROLE` role and the `TWITTER_ANALYTICS_SVC` service user (`TYPE = SERVICE`: password login is impossible);
+- minimal grants (select/insert on the raw table, view/table creation for dbt).
 
-Un bloc optionnel en fin de script crée un *resource monitor* qui plafonne la dépense mensuelle.
+An optional block at the end of the script creates a *resource monitor* that caps monthly spend.
 
-### 3. Variables d'environnement
+### 3. Environment variables
 
-Copier `.env.example` en `.env` et remplir les `SNOWFLAKE_*`. `SNOWFLAKE_ACCOUNT` est l'identifiant `<orgname>-<account_name>` (Snowsight → menu du compte → *Account details*).
+Copy `.env.example` to `.env` and fill in the `SNOWFLAKE_*` variables. `SNOWFLAKE_ACCOUNT` is the `<orgname>-<account_name>` identifier (Snowsight → account menu → *Account details*).
 
-`SNOWFLAKE_PRIVATE_KEY` accepte deux formats (même convention que dbt-snowflake) :
+`SNOWFLAKE_PRIVATE_KEY` accepts two formats (same convention as dbt-snowflake):
 
-- le corps de `rsa_key.p8` sur une ligne — le plus simple pour `.env` :
+- the body of `rsa_key.p8` on a single line — the simplest for `.env`:
   `grep -v "PRIVATE KEY" rsa_key.p8 | tr -d '\n'`
-- le PEM complet, `-----BEGIN ...` inclus (secrets GitHub, ou `.env` entre guillemets doubles).
+- the full PEM, `-----BEGIN ...` included (GitHub secrets, or `.env` inside double quotes).
 
-`X_OWNED_USERNAME` doit correspondre au compte associé au Bearer Token (vérifié avant tout appel API pour rester au tarif Owned Read — `GET /2/users/me` n'est pas utilisable ici car il nécessite une auth user-context, incompatible avec un Bearer Token seul).
+`X_OWNED_USERNAME` must match the account tied to the Bearer Token (checked before any API call to stay on the Owned Read rate — `GET /2/users/me` can't be used here because it requires user-context auth, which is incompatible with a Bearer Token alone).
 
-Ne jamais committer `.env` (déjà exclu via `.gitignore`).
+Never commit `.env` (already excluded via `.gitignore`).
 
-### 4. Reprise de l'historique Supabase (une seule fois)
+### 4. Importing the Supabase history (one time only)
 
-Avec `SUPABASE_URL` / `SUPABASE_KEY` et les `SNOWFLAKE_*` dans `.env` :
+With `SUPABASE_URL` / `SUPABASE_KEY` and the `SNOWFLAKE_*` variables in `.env`:
 
 ```bash
-python scripts/migrate_supabase_to_snowflake.py --dry-run   # compte sans écrire
+python scripts/migrate_supabase_to_snowflake.py --dry-run   # counts without writing
 python scripts/migrate_supabase_to_snowflake.py
 ```
 
-Le script est idempotent : il saute les lignes déjà présentes (même `tweet_id` + même `extracted_at`) et peut être relancé sans risque de doublon. Les `extracted_at` d'origine sont conservés, donc `extraction_week` est identique des deux côtés.
+The script is idempotent: it skips rows already present (same `tweet_id` + same `extracted_at`) and can be re-run without risk of duplicates. The original `extracted_at` values are preserved, so `extraction_week` is identical on both sides.
 
-### 4 bis. Métriques quotidiennes du compte (exports CSV X)
+### 4 bis. Daily account metrics (X CSV exports)
 
-Impressions du jour, visites de profil, nouveaux abonnés / désabonnements… sont des métriques **au niveau du compte** que l'API X ne fournit pas : elles viennent de l'export manuel **x.com → Analytics → Overview → Export** (`account_overview_analytics.csv`).
+Daily impressions, profile visits, new follows / unfollows… are **account-level** metrics that the X API doesn't provide: they come from the manual export **x.com → Analytics → Overview → Export** (`account_overview_analytics.csv`).
 
 ```bash
 python scripts/load_x_account_analytics.py ~/Downloads/account_overview_analytics.csv --dry-run
 python scripts/load_x_account_analytics.py ~/Downloads/account_overview_analytics.csv
 ```
 
-Le script crée `ACCOUNT_DAILY_METRICS_RAW` si besoin et fait un `MERGE` sur la date : une ligne par jour, les exports peuvent se chevaucher, et pour un même jour la ligne de l'export le plus récent l'emporte (X révise les derniers jours). Recharger un vieux fichier n'écrase jamais des chiffres plus frais.
+The script creates `ACCOUNT_DAILY_METRICS_RAW` if needed and does a `MERGE` on the date: one row per day, exports may overlap, and for a given day the row from the most recent export wins (X revises the latest days). Reloading an old file never overwrites fresher figures.
 
-Modèles dbt : `stg_account_daily_metrics` (jour + semaine du lundi, `net_follows`) et `account_metrics_weekly` (même découpage lundi → dimanche que `tweet_engagement_weekly`, `days_covered < 7` = semaine partielle).
+dbt models: `stg_account_daily_metrics` (day + Monday-based week, `net_follows`) and `account_metrics_weekly` (same Monday → Sunday split as `tweet_engagement_weekly`, `days_covered < 7` = partial week).
 
-Le fichier peut être le CSV d'origine de X ou un `.xlsx` enregistré depuis Excel. Ne pas ré-enregistrer le CSV depuis Excel (il réécrit les dates, ex. `27/09/2026`) : le script le refuse avec un message explicite.
+The file can be the original X CSV or an `.xlsx` saved from Excel. Do not re-save the CSV from Excel (it rewrites the dates, e.g. `27/09/2026`): the script rejects it with an explicit message.
 
-### 4 ter. Dashboard : jour / semaine / mois
+### 4 ter. Dashboard: day / week / month
 
-Le dashboard lit des séries **quotidiennes** et un filtre *Granularité* (Jour / Semaine / Mois) les regroupe à l'affichage, pour les deux sections :
+The dashboard reads **daily** series and a *Granularity* filter (Day / Week / Month) groups them at display time, for both sections:
 
-- **Compte** : `stg_account_daily_metrics` (une ligne par jour d'export X) ;
-- **Tweets** : `tweet_metrics_daily`, tweets agrégés par **jour de publication** (UTC), en gardant le dernier relevé de chaque tweet.
+- **Account**: `stg_account_daily_metrics` (one row per day of X export);
+- **Tweets**: `tweet_metrics_daily`, tweets aggregated by **publication day** (UTC), keeping the latest snapshot of each tweet.
 
-Le pipeline tourne une fois par semaine, mais chaque tweet est stocké individuellement avec son heure de publication : un run du lundi remplit les 7 jours de la semaine écoulée. Semaines du lundi au dimanche, mois civils ; une période que les données ne couvrent pas entièrement est estompée (« incomplète » au survol). Regroupement dans `app/periods.py` (testé dans `tests/test_periods.py`).
+The pipeline runs once a week, but each tweet is stored individually with its publication time: a Monday run fills the 7 days of the past week. Weeks run Monday to Sunday, months are calendar months; a period the data doesn't fully cover is dimmed ("incomplete" on hover). Grouping lives in `app/periods.py` (tested in `tests/test_periods.py`).
 
-Pour garder la série à jour : refaire un export (X propose jusqu'à 90 jours) et relancer le script, par exemple une fois par mois.
+To keep the series up to date: redo an export (X offers up to 90 days) and re-run the script, for example once a month.
 
-### 5. Connexion dbt
+### 5. dbt connection
 
-`dbt_project/profiles.yml` est versionné dans le repo (pas dans `~/.dbt/`) et lit `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_PRIVATE_KEY` et `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE` (optionnel). Comme il est à côté de `dbt_project.yml`, `--profiles-dir dbt_project` est requis à chaque commande dbt.
+`dbt_project/profiles.yml` is versioned in the repo (not in `~/.dbt/`) and reads `SNOWFLAKE_ACCOUNT`, `SNOWFLAKE_USER`, `SNOWFLAKE_ROLE`, `SNOWFLAKE_WAREHOUSE`, `SNOWFLAKE_DATABASE`, `SNOWFLAKE_SCHEMA`, `SNOWFLAKE_PRIVATE_KEY` and `SNOWFLAKE_PRIVATE_KEY_PASSPHRASE` (optional). Since it sits next to `dbt_project.yml`, `--profiles-dir dbt_project` is required on every dbt command.
 
-**Attention** : contrairement à `run_pipeline.py`, dbt ne charge pas `.env` automatiquement (`env_var()` lit uniquement les vraies variables d'environnement du shell). En local, préfixer les commandes dbt avec `dotenv run --` (fourni par `python-dotenv`) depuis la racine du repo :
+**Warning**: unlike `run_pipeline.py`, dbt does not load `.env` automatically (`env_var()` only reads real shell environment variables). Locally, prefix dbt commands with `dotenv run --` (provided by `python-dotenv`) from the repo root:
 
 ```bash
 dotenv run -- dbt debug --project-dir dbt_project --profiles-dir dbt_project
 ```
 
-`extraction_week` est le lundi (UTC) de la semaine couverte, calculé avec `dayofweekiso()` (macro `week_start_monday`) plutôt qu'avec `date_trunc('week', ...)`, dont le résultat dépend du paramètre Snowflake `WEEK_START`.
+`extraction_week` is the Monday (UTC) of the covered week, computed with `dayofweekiso()` (`week_start_monday` macro) rather than `date_trunc('week', ...)`, whose result depends on the Snowflake `WEEK_START` parameter.
 
-### 6. Secrets GitHub Actions
+### 6. GitHub Actions secrets
 
-Dans **Settings → Secrets and variables → Actions**, ajouter `X_BEARER_TOKEN`, `X_OWNED_USERNAME` et tous les `SNOWFLAKE_*` de `.env.example` (`SNOWFLAKE_PRIVATE_KEY` : coller le PEM complet, le multi-ligne est accepté). Les `SUPABASE_*` ne sont plus utilisés par ce workflow.
+Under **Settings → Secrets and variables → Actions**, add `X_BEARER_TOKEN`, `X_OWNED_USERNAME` and every `SNOWFLAKE_*` variable from `.env.example` (`SNOWFLAKE_PRIVATE_KEY`: paste the full PEM, multi-line is accepted). The `SUPABASE_*` variables are no longer used by this workflow.
 
-### 7. Secrets Streamlit (Community Cloud)
+### 7. Streamlit secrets (Community Cloud)
 
-Dans **App settings → Secrets**, mêmes clés au format TOML :
+Under **App settings → Secrets**, the same keys in TOML format:
 
 ```toml
 SNOWFLAKE_ACCOUNT = "<orgname>-<account_name>"
@@ -167,7 +167,7 @@ SNOWFLAKE_PRIVATE_KEY = """-----BEGIN PRIVATE KEY-----
 -----END PRIVATE KEY-----"""
 ```
 
-### 8. Lancer manuellement (test)
+### 8. Running manually (testing)
 
 ```bash
 pip install -r requirements.txt
@@ -177,34 +177,34 @@ dotenv run -- dbt test --project-dir dbt_project --profiles-dir dbt_project
 streamlit run app/streamlit_app.py
 ```
 
-## Automatisation
+## Automation
 
-Le workflow `.github/workflows/weekly_pipeline.yml` tourne chaque lundi à 01:10 UTC (3h10 Paris en heure d'été, 2h10 en hiver), avec un second cron de rattrapage à 13:17 UTC, et peut être déclenché manuellement via l'onglet **Actions** (`workflow_dispatch`).
+The `.github/workflows/weekly_pipeline.yml` workflow runs every Monday at 01:10 UTC (3:10 Paris in summer time, 2:10 in winter), with a second catch-up cron at 13:17 UTC, and can be triggered manually from the **Actions** tab (`workflow_dispatch`).
 
-**Important** : GitHub n'exécute les `schedule` que sur la branche par défaut. Tant que cette version vit sur la branche `snowflake-migration`, elle ne tourne que sur déclenchement manuel :
+**Important**: GitHub only runs `schedule` triggers on the default branch. As long as this version lives on the `snowflake-migration` branch, it only runs when triggered manually:
 
 ```bash
 gh workflow run weekly_pipeline.yml --ref snowflake-migration
 ```
 
-## Coûts estimés
+## Estimated costs
 
-Le volume (~60 tweets/semaine, quelques centaines de lignes) est négligeable : le coût Snowflake vient uniquement du temps d'allumage du warehouse. X-SMALL = 1 crédit/heure, facturé à la seconde avec **60 s minimum par reprise**, plus 60 s d'inactivité avant l'auto-suspend. Le crédit Standard coûte ≈ 2 $ (AWS US) à ~2,6 $ (régions EU).
+The volume (~60 tweets/week, a few hundred rows) is negligible: the Snowflake cost comes only from warehouse uptime. X-SMALL = 1 credit/hour, billed per second with a **60 s minimum per resume**, plus 60 s of idle time before auto-suspend. A Standard credit costs ≈ $2 (AWS US) to ~$2.60 (EU regions).
 
-| Poste | Coût mensuel estimé |
+| Item | Estimated monthly cost |
 |---|---|
-| API X (60 tweets/semaine, Owned Reads) | ~0,30 $ |
-| GitHub Actions (repo privé, quelques minutes/mois) | 0 $ (largement sous le quota gratuit) |
-| Snowflake — pipeline (2 runs/semaine × ~2-4 min de warehouse) | ~1-2 $ |
-| Snowflake — dashboard (chaque visite hors cache réveille le warehouse ≥ 2 min) | ~2-10 $ selon le trafic |
-| Snowflake — stockage (< 1 Go) et cloud services (< 10 % du compute) | ~0 $ |
-| Streamlit Community Cloud | 0 $ |
-| **Total Snowflake Standard** | **~3-12 $ / mois** |
+| X API (60 tweets/week, Owned Reads) | ~$0.30 |
+| GitHub Actions (private repo, a few minutes/month) | $0 (well under the free quota) |
+| Snowflake — pipeline (2 runs/week × ~2-4 min of warehouse) | ~$1-2 |
+| Snowflake — dashboard (each uncached visit wakes the warehouse for ≥ 2 min) | ~$2-10 depending on traffic |
+| Snowflake — storage (< 1 GB) and cloud services (< 10% of compute) | ~$0 |
+| Streamlit Community Cloud | $0 |
+| **Total Snowflake Standard** | **~$3-12 / month** |
 
-Pour plafonner : activer le *resource monitor* optionnel de `sql/snowflake_setup.sql` et garder le cache de 10 min du dashboard (`ttl=600`).
+To cap spending: enable the optional *resource monitor* in `sql/snowflake_setup.sql` and keep the dashboard's 10-minute cache (`ttl=600`).
 
 ## Notes
 
-- Le matching avec les trends X a été écarté après test (voir historique du projet) au profit d'un suivi pur des métriques d'engagement.
-- Le premier run a montré un engagement quasi nul malgré des impressions correctes — point à surveiller dans le dashboard Streamlit une fois plusieurs semaines de données accumulées.
-- La version Supabase (Postgres + `dbt-postgres`) reste sur la branche `main` jusqu'à la fin du cutover.
+- Matching against X trends was dropped after testing (see project history) in favor of pure engagement-metric tracking.
+- The first run showed almost no engagement despite decent impressions — something to watch in the Streamlit dashboard once several weeks of data have accumulated.
+- The Supabase version (Postgres + `dbt-postgres`) stays on the `main` branch until the cutover is complete.
